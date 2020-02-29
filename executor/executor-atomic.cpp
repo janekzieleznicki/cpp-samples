@@ -32,14 +32,14 @@ public:
       // std::this_thread::yield();
     else {
       std::string output{"Iteration"};
-      output.append(std::to_string(++counter));
+      output.append(std::to_string(counter));
       (*expected)(std::chrono::high_resolution_clock::now(), output);
     }
   }
   void operator()() {
     int counter{0};
     while (continue_) {
-      try_execute(counter);
+      try_execute(++counter);
     }
   }
   void emplace(MyExecutable *new_work) {
