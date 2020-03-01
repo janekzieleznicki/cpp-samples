@@ -40,22 +40,12 @@ int main() {
   
   std::mutex cout_mutex;
   std::thread executor_thread{[&executor = *executor] { executor(); }};
-  auto work = [&executor, &cout_mutex] {
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < NUM_WORKS; ++i) {
-      CountingExecutable executable{i};
-      auto future = executable.promise.get_future();
-      executor->emplace(&executable);
-      auto res = future.get();
-      std::lock_guard guard{cout_mutex};
-      std::cout << PrintableResult{res, start} << std::endl;
-    }
-  };
+
   std::cout << PrintableResult::column_names() << std::endl;
   {
     std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
     for (auto &th : threads)
-      th = std::thread(work);
+      th = std::thread(Benchmark<AtomicExecutor>{*executor,cout_mutex,std::cout});
     for (auto &th : threads)
       th.join();
   }
