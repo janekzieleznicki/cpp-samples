@@ -1,8 +1,10 @@
 #include <chrono>
 #include <future>
-#include <ostream>
+#include <iostream>
 #include <sstream>
 #include <string>
+#include <mutex>
+
 static const int NUM_WORKS = 2048;
 struct ExecutionResult {
   std::chrono::high_resolution_clock::time_point time_point;
@@ -57,4 +59,22 @@ template <typename DerivedExecutor> struct BaseExecutor {
   }
   void stop() { static_cast<DerivedExecutor &>(*this).stop(); }
   virtual ~BaseExecutor() = default;
+};
+
+template <typename Executor> struct Benchmark {
+  BaseExecutor<Executor> &executor;
+  std::mutex &cout_mutex;
+  std::ostream& ostream;
+  void operator()() {
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < NUM_WORKS; ++i) {
+      CountingExecutable executable{i};
+      auto future = executable.promise.get_future();
+      executor.emplace(&executable);
+      auto res = future.get();
+      //Print results under mutex
+      std::lock_guard guard{cout_mutex};
+      ostream << PrintableResult{res, start} << std::endl;
+    }
+  }
 };
