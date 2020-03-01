@@ -5,7 +5,7 @@
 #include <thread>
 #include <vector>
 
-template <size_t pool_size = 2>
+template <size_t pool_size = 6>
 struct ThreadPoolExecutor : BaseExecutor<ThreadPoolExecutor<pool_size>> {
 private:
   //==============================================================================
@@ -30,6 +30,7 @@ private:
     if (expected != nullptr)
       (*expected)(counter);
   }
+
 public:
   /**
    * Enable runtime access to pool_size
@@ -54,7 +55,7 @@ public:
   /**
    * Destructor stopping threads
    */
-  ~ThreadPoolExecutor()override {
+  ~ThreadPoolExecutor() override {
     stop();
     for (auto &thr : threads)
       thr.join();
@@ -64,12 +65,21 @@ public:
    */
   void emplace(CountingExecutable *new_work) {
     CountingExecutable *empty{nullptr};
-    while (!maybe_executable.compare_exchange_weak(empty, new_work))
+    static std::mutex cerr_protector;
+    while (!maybe_executable.compare_exchange_weak(empty, new_work)) {
+      if (empty != nullptr){
+        std::lock_guard cerr_guard{cerr_protector};
+        std::cerr << "[ " << std::hex << std::this_thread::get_id()
+                  << " ]\tSomeone already placed work:\t" << std::hex << empty
+                  << std::endl;
+      }
+      std::this_thread::yield();
       empty = nullptr; // with complex tasks we should check if executor is not
                        // doing something important
-  }  /**
-   * Stop executor
-   */
+    }
+  } /**
+     * Stop executor
+     */
   void stop() { continue_.store(false); }
 };
 
@@ -87,8 +97,8 @@ template <> struct BenchmarkRunner<ThreadPoolExecutor<>> {
       std::vector<std::thread> threads(num_threads);
       for (auto &th : threads)
         th = std::thread(CountBenchmark<ThreadPoolExecutor<>>{*executor,
-                                                                cout_mutex,
-                                                                std::cout},
+                                                              cout_mutex,
+                                                              std::cout},
                          work_per_thread.quot + ((--rem >= 0) ? 1 : 0));
       for (auto &th : threads)
         th.join();
