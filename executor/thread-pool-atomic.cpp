@@ -67,7 +67,7 @@ public:
     CountingExecutable *empty{nullptr};
     static std::mutex cerr_protector;
     while (!maybe_executable.compare_exchange_weak(empty, new_work)) {
-      if (empty != nullptr){
+      if (empty != nullptr) {
         std::lock_guard cerr_guard{cerr_protector};
         std::cerr << "[ " << std::hex << std::this_thread::get_id()
                   << " ]\tSomeone already placed work:\t" << std::hex << empty
@@ -77,9 +77,10 @@ public:
       empty = nullptr; // with complex tasks we should check if executor is not
                        // doing something important
     }
-  } /**
-     * Stop executor
-     */
+  }
+  /**
+   * Stop executor
+   */
   void stop() { continue_.store(false); }
 };
 
@@ -87,7 +88,7 @@ template <> struct BenchmarkRunner<ThreadPoolExecutor<>> {
   std::unique_ptr<BaseExecutor<ThreadPoolExecutor<>>> executor;
   std::mutex cout_mutex;
   int num_threads =
-      std::thread::hardware_concurrency() - ThreadPoolExecutor<>::size;
+      std::thread::hardware_concurrency() * 2 - ThreadPoolExecutor<>::size;
   void operator()(int count) {
     std::cout << PrintableResult::column_names() << std::endl;
     {
