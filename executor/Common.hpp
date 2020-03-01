@@ -102,10 +102,8 @@ template <typename Executor, typename Duration> struct DurationBenchmark {
 };
 
 template <typename ExecutorImplementation> struct BenchmarkRunner {
-    private:
-  std::mutex cout_mutex{};
   std::unique_ptr<BaseExecutor<ExecutorImplementation>> executor;
-  public:
+  std::mutex cout_mutex{};
   std::thread executor_thread{[&executor = *executor] { executor(); }};
   ~BenchmarkRunner() {
     executor->stop();
