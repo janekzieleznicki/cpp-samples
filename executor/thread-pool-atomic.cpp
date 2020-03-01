@@ -8,16 +8,39 @@
 template <size_t pool_size = 2>
 struct ThreadPoolExecutor : BaseExecutor<ThreadPoolExecutor<pool_size>> {
 private:
+  //==============================================================================
+  /*Work*/
   std::atomic<CountingExecutable *> maybe_executable{nullptr};
   static_assert(std::atomic<CountingExecutable *>::is_always_lock_free);
+  //==============================================================================
+  /*Executor internals*/
   std::atomic<bool> continue_{true};
   static_assert(std::atomic<bool>::is_always_lock_free);
-  // std::atomic<long long> counter{0};
-
   std::vector<std::thread> threads{pool_size};
-
+  //==============================================================================
+  /*Methods*/
+  //==============================================================================
+  /**
+   * Try and execute (potentialy) available work
+   */
+  void try_execute(long long counter) {
+    CountingExecutable *expected{nullptr}, *empty{nullptr};
+    while (!maybe_executable.compare_exchange_weak(expected, empty))
+      ;
+    if (expected != nullptr)
+      (*expected)(counter);
+  }
 public:
+  /**
+   * Enable runtime access to pool_size
+   */
   static const size_t size = pool_size;
+  //==============================================================================
+  /*Methods*/
+  //==============================================================================
+  /**
+   * Construct and start threads
+   */
   ThreadPoolExecutor() {
     auto work = [this] {
       long long counter{0};
@@ -28,25 +51,26 @@ public:
       thr = std::thread{work};
     }
   }
-  ~ThreadPoolExecutor() {
+  /**
+   * Destructor stopping threads
+   */
+  ~ThreadPoolExecutor()override {
     stop();
     for (auto &thr : threads)
       thr.join();
   }
-  void stop() { continue_.store(false); }
-  void try_execute(long long counter) {
-    CountingExecutable *expected{nullptr}, *empty{nullptr};
-    while (!maybe_executable.compare_exchange_weak(expected, empty))
-      ;
-    if (expected != nullptr)
-      (*expected)(counter);
-  }
+  /**
+   * Emplace new work
+   */
   void emplace(CountingExecutable *new_work) {
     CountingExecutable *empty{nullptr};
     while (!maybe_executable.compare_exchange_weak(empty, new_work))
       empty = nullptr; // with complex tasks we should check if executor is not
                        // doing something important
-  }
+  }  /**
+   * Stop executor
+   */
+  void stop() { continue_.store(false); }
 };
 
 template <> struct BenchmarkRunner<ThreadPoolExecutor<>> {
