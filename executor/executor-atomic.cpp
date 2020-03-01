@@ -37,7 +37,7 @@ public:
 int main() {
   std::unique_ptr<BaseExecutor<AtomicExecutor>> executor =
       std::make_unique<AtomicExecutor>();
-  
+
   std::mutex cout_mutex;
   std::thread executor_thread{[&executor = *executor] { executor(); }};
 
@@ -45,7 +45,8 @@ int main() {
   {
     std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
     for (auto &th : threads)
-      th = std::thread(Benchmark<AtomicExecutor>{*executor,cout_mutex,std::cout});
+      th = std::thread(
+          Benchmark<AtomicExecutor>{*executor, cout_mutex, std::cout});
     for (auto &th : threads)
       th.join();
   }

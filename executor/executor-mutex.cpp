@@ -31,7 +31,6 @@ public:
       std::lock_guard guard{mutex};
       expected = maybe_executable;
       maybe_executable = nullptr;
-      cv.notify_one();
     }
     if (expected != nullptr)
       (*expected)(counter);
@@ -42,12 +41,15 @@ public:
     }
   }
   void emplace(CountingExecutable *new_work) {
-    std::unique_lock lock{mutex};
-    cv.wait(lock, [&ptr = maybe_executable] { return ptr == nullptr; });
-    maybe_executable = new_work;
+    while (true) {
+      std::lock_guard guard{mutex};
+      if (maybe_executable == nullptr) {
+        maybe_executable = new_work;
+        break;
+      }
+    }
   }
 };
-
 int main() {
 
   std::unique_ptr<BaseExecutor<MutexExecutor>> executor =
@@ -59,7 +61,8 @@ int main() {
   {
     std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
     for (auto &th : threads)
-      th = std::thread(Benchmark<MutexExecutor>{*executor,cout_mutex,std::cout});
+      th = std::thread(
+          Benchmark<MutexExecutor>{*executor, cout_mutex, std::cout});
     for (auto &th : threads)
       th.join();
   }
