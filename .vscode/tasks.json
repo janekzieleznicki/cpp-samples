@@ -7,15 +7,15 @@
             "label": "cachegrind",
             "command":"valgrind",
             "args": [
-                "--tool=cachegrind","${command:cmake.launchTargetPath}"
+                "--tool=cachegrind","${command:cmake.launchTargetPath} > /dev/null"
             ],
-            "dependsOn": ["CMake: Build"]
+            "dependsOn": ["CMake: Build"],
         },
         {
             "label": "valgrind memcheck",
             "command":"valgrind",
             "args": [
-                "--tool=memcheck","--leak-check=full","${command:cmake.launchTargetPath}"
+                "--tool=memcheck","--leak-check=full","${command:cmake.launchTargetPath} > /dev/null"
             ],
             "dependsOn": ["CMake: Build"]
         },
