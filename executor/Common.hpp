@@ -78,3 +78,26 @@ template <typename Executor> struct Benchmark {
     }
   }
 };
+template <typename Executor, typename Duration> struct DurationBenchmark {
+using Clock = std::chrono::high_resolution_clock;
+
+  BaseExecutor<Executor> &executor;
+  std::mutex &cout_mutex;
+  std::ostream& ostream;
+  Duration duration;
+  bool elapsed(const Clock::time_point& start_time){
+    return Clock::now() < start_time + duration;
+  }
+  void operator()() {
+    auto start = Clock::now();
+    for (int i = 0; elapsed(start) ; ++i) {
+      CountingExecutable executable{i};
+      auto future = executable.promise.get_future();
+      executor.emplace(&executable);
+      auto res = future.get();
+      //Print results under mutex
+      std::lock_guard guard{cout_mutex};
+      ostream << PrintableResult{res, start} << std::endl;
+    }
+  }
+};

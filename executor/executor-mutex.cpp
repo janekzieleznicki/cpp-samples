@@ -59,10 +59,11 @@ int main() {
   std::thread executor_thread{[&executor = *executor] { executor(); }};
   std::cout << PrintableResult::column_names() << std::endl;
   {
+    using namespace std::chrono_literals;
     std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
     for (auto &th : threads)
       th = std::thread(
-          Benchmark<MutexExecutor>{*executor, cout_mutex, std::cout});
+          DurationBenchmark<MutexExecutor,std::chrono::nanoseconds>{*executor, cout_mutex, std::cout, 60s});
     for (auto &th : threads)
       th.join();
   }
