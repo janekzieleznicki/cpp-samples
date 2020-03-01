@@ -17,7 +17,7 @@ public:
   void stop() { continue_.store(false); }
   void try_execute(long long &counter) {
     CountingExecutable *expected{nullptr}, *empty{nullptr};
-    while (!maybe_executable.compare_exchange_weak(expected, empty))
+    while (!maybe_executable.compare_exchange_weak(expected, empty,std::memory_order_acquire))
       ;
     if (expected != nullptr)
       (*expected)(counter);
@@ -30,7 +30,7 @@ public:
   void emplace(CountingExecutable *new_work) {
     CountingExecutable *empty{nullptr};
     static std::mutex cerr_protector;
-    while (!maybe_executable.compare_exchange_weak(empty, new_work)) {
+    while (!maybe_executable.compare_exchange_weak(empty, new_work,std::memory_order_release)) {
       if (empty != nullptr) {
         std::lock_guard cerr_guard{cerr_protector};
         std::cerr << "[ " << std::hex << std::this_thread::get_id()
