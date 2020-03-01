@@ -5,7 +5,7 @@
 #include <string>
 #include <mutex>
 
-static const int NUM_WORKS = 2048;
+#include <boost/program_options.hpp>
 struct ExecutionResult {
   std::chrono::high_resolution_clock::time_point time_point;
   std::string data;
@@ -38,9 +38,9 @@ template <typename Result> struct Executable {
   }
 };
 template <> struct Executable<ExecutionResult> {
-    int index;
+    long long index;
   std::promise<ExecutionResult> promise;
-  void operator()(int counter) {
+  void operator()(long long counter) {
     std::string output{"\t"};
     output.append(std::to_string(counter));
     output.append("\t");
@@ -61,13 +61,13 @@ template <typename DerivedExecutor> struct BaseExecutor {
   virtual ~BaseExecutor() = default;
 };
 
-template <typename Executor> struct Benchmark {
+template <typename Executor> struct CountBenchmark {
   BaseExecutor<Executor> &executor;
   std::mutex &cout_mutex;
   std::ostream& ostream;
-  void operator()() {
+  void operator()(int num_dispatches = 2048) {
     auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < NUM_WORKS; ++i) {
+    for (int i = 0; i < num_dispatches; ++i) {
       CountingExecutable executable{i};
       auto future = executable.promise.get_future();
       executor.emplace(&executable);
@@ -101,3 +101,68 @@ using Clock = std::chrono::high_resolution_clock;
     }
   }
 };
+
+template <typename ExecutorImplementation> struct BenchmarkRunner {
+  std::unique_ptr<BaseExecutor<ExecutorImplementation>> executor;
+  std::mutex cout_mutex;
+  std::thread executor_thread{[&executor = *executor] { executor(); }};
+  ~BenchmarkRunner() {
+    executor->stop();
+    executor_thread.join();
+  }
+  void operator()(int count) {
+    std::cout << PrintableResult::column_names() << std::endl;
+    {
+      using namespace std::chrono_literals;
+      std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
+      for (auto &th : threads)
+        th = std::thread(
+            CountBenchmark<ExecutorImplementation>{*executor, cout_mutex, std::cout},
+            count);
+      for (auto &th : threads)
+        th.join();
+    }
+  }
+  void operator()(std::chrono::seconds sec) {
+    std::cout << PrintableResult::column_names() << std::endl;
+    {
+      using namespace std::chrono_literals;
+      std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
+      for (auto &th : threads)
+        th = std::thread(
+            DurationBenchmark<ExecutorImplementation, std::chrono::nanoseconds>{
+                *executor, cout_mutex, std::cout, sec});
+      for (auto &th : threads)
+        th.join();
+    }
+  }
+};
+
+template <typename ExecuterImplementation> struct CmdlineParser {
+  int operator()(int &argc, char **&argv) {
+    namespace po = boost::program_options;
+    po::options_description desc("Benchmark options");
+    desc.add_options()("help", "produce help message")(
+        "timer", po::value<int>(),
+        "run time in seconds")("count", po::value<int>(), "iterations count");
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if (vm.count("help")) {
+      std::cout << desc << "\n";
+      return EXIT_SUCCESS;
+    }
+    BenchmarkRunner<ExecuterImplementation> benchmark_runner{
+        std::make_unique<ExecuterImplementation>()};
+    if (vm.count("timer")) {
+      benchmark_runner(std::chrono::seconds(vm["timer"].as<int>()));
+      return EXIT_SUCCESS;
+    } else if (vm.count("count")) {
+      benchmark_runner(vm["count"].as<int>());
+      return EXIT_SUCCESS;
+    } else {
+      std::cout << desc << "\n";
+      return EXIT_FAILURE;
+    }
+  }
+}; 
