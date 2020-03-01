@@ -64,9 +64,12 @@ public:
    */
   void emplace(CountingExecutable *new_work) {
     CountingExecutable *empty{nullptr};
-    while (!maybe_executable.compare_exchange_weak(empty, new_work))
+    while (!maybe_executable.compare_exchange_weak(empty, new_work)){
+      if(empty == nullptr)
+      std::this_thread::yield();
       empty = nullptr; // with complex tasks we should check if executor is not
                        // doing something important
+    }
   }  /**
    * Stop executor
    */
@@ -77,7 +80,7 @@ template <> struct BenchmarkRunner<ThreadPoolExecutor<>> {
   std::unique_ptr<BaseExecutor<ThreadPoolExecutor<>>> executor;
   std::mutex cout_mutex;
   int num_threads =
-      std::thread::hardware_concurrency() - ThreadPoolExecutor<>::size;
+      std::thread::hardware_concurrency()*2 - ThreadPoolExecutor<>::size;
   void operator()(int count) {
     std::cout << PrintableResult::column_names() << std::endl;
     {
