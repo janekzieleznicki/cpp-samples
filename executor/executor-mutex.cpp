@@ -21,17 +21,16 @@ private:
   std::atomic<bool> continue_{true};
   static_assert(std::atomic<bool>::is_always_lock_free);
 
-  int counter{0};
+  long long counter{0};
 
 public:
   void stop() { continue_.store(false); }
-  void try_execute(int &counter) {
+  void try_execute(long long &counter) {
     CountingExecutable *expected{nullptr};
     {
       std::lock_guard guard{mutex};
       expected = maybe_executable;
       maybe_executable = nullptr;
-      cv.notify_one();
     }
     if (expected != nullptr)
       (*expected)(counter);
@@ -42,27 +41,17 @@ public:
     }
   }
   void emplace(CountingExecutable *new_work) {
-    std::unique_lock lock{mutex};
-    cv.wait(lock, [&ptr = maybe_executable] { return ptr == nullptr; });
-    maybe_executable = new_work;
+    while (true) {
+      std::lock_guard guard{mutex};
+      if (maybe_executable == nullptr) {
+        maybe_executable = new_work;
+        break;
+      }
+    }
   }
 };
 
-int main() {
-
-  std::unique_ptr<BaseExecutor<MutexExecutor>> executor =
-      std::make_unique<MutexExecutor>();
-  // AtomicExecutor executor;
-  std::mutex cout_mutex;
-  std::thread executor_thread{[&executor = *executor] { executor(); }};
-  std::cout << PrintableResult::column_names() << std::endl;
-  {
-    std::vector<std::thread> threads(std::thread::hardware_concurrency() - 1);
-    for (auto &th : threads)
-      th = std::thread(Benchmark<MutexExecutor>{*executor,cout_mutex,std::cout});
-    for (auto &th : threads)
-      th.join();
-  }
-  executor->stop();
-  executor_thread.join();
+int main(int argc, char **argv) {
+  CmdlineParser<MutexExecutor> clp;
+  return clp(argc,argv);
 }
