@@ -6,7 +6,7 @@
 
 struct MutexExecutor : BaseExecutor<MutexExecutor> {
 private:
-  std::atomic<CountingExecutable *> maybe_executable{nullptr};
+  CountingExecutable * maybe_executable{nullptr};
   static_assert(std::atomic<CountingExecutable *>::is_always_lock_free);
   std::atomic<bool> continue_{true};
   static_assert(std::atomic<bool>::is_always_lock_free);
@@ -19,8 +19,8 @@ public:
     CountingExecutable *expected{nullptr};
     {
       std::lock_guard guard{mutex};
-      expected = maybe_executable.load();
-      maybe_executable.store(nullptr);
+      expected = maybe_executable;
+      maybe_executable=nullptr;
     }
     if (expected != nullptr)
       (*expected)(counter);
@@ -33,8 +33,8 @@ public:
   void emplace(CountingExecutable *new_work) {
     while(true){
     std::lock_guard guard{mutex};
-    if(maybe_executable.load() == nullptr){
-      maybe_executable.store(new_work);
+    if(maybe_executable == nullptr){
+      maybe_executable=new_work;
       break;
     }
     }
