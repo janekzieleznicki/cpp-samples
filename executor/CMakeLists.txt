@@ -16,3 +16,7 @@ target_link_libraries(executor-mutex Threads::Threads ${CONAN_LIBS})
 
 add_executable(executor-atomic executor-atomic.cpp)
 target_link_libraries(executor-atomic Threads::Threads ${CONAN_LIBS})
+
+
+add_executable(thread-pool-atomic thread-pool-atomic.cpp)
+target_link_libraries(thread-pool-atomic Threads::Threads ${CONAN_LIBS})
