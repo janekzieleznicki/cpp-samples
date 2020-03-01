@@ -1,16 +1,26 @@
 #include "Common.hpp"
 
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include <vector>
 
 struct MutexExecutor : BaseExecutor<MutexExecutor> {
 private:
-  CountingExecutable * maybe_executable{nullptr};
+  //==============================================================================
+  /*Work*/
+  CountingExecutable *maybe_executable{nullptr};
   static_assert(std::atomic<CountingExecutable *>::is_always_lock_free);
+  //==============================================================================
+  /*Synchronization*/
+  std::condition_variable cv;
+  std::mutex mutex;
+  //==============================================================================
+  /*Internals*/
   std::atomic<bool> continue_{true};
   static_assert(std::atomic<bool>::is_always_lock_free);
-  std::mutex mutex;
+
   int counter{0};
 
 public:
@@ -20,7 +30,8 @@ public:
     {
       std::lock_guard guard{mutex};
       expected = maybe_executable;
-      maybe_executable=nullptr;
+      maybe_executable = nullptr;
+      cv.notify_one();
     }
     if (expected != nullptr)
       (*expected)(counter);
@@ -31,14 +42,9 @@ public:
     }
   }
   void emplace(CountingExecutable *new_work) {
-    while(true){
-    std::lock_guard guard{mutex};
-    if(maybe_executable == nullptr){
-      maybe_executable=new_work;
-      break;
-    }
-    }
-    
+    std::unique_lock lock{mutex};
+    cv.wait(lock, [&ptr = maybe_executable] { return ptr == nullptr; });
+    maybe_executable = new_work;
   }
 };
 
