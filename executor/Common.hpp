@@ -1,3 +1,6 @@
+#pragma once
+#include "WorkSimulator.hpp"
+
 #include <chrono>
 #include <future>
 #include <iostream>
@@ -14,7 +17,12 @@ struct ExecutionResult {
 struct PrintableResult {
   static std::string column_names() {
     std::stringstream ss;
-    ss << "Time[ns]\tThreadID\tIteration\tIndex";
+    ss << "Time[ns]"
+          "\tThreadID"
+          "\tIteration"
+          "\tIndex"
+          // "\tRandom Sum"
+          ;
     return ss.str();
   }
   ExecutionResult execution_result;
@@ -44,6 +52,7 @@ template <> struct Executable<ExecutionResult> {
     ss << '\t' << std::hex << std::this_thread::get_id() << std::dec;
     ss << '\t' << counter;
     ss << '\t' << index;
+    // ss << '\t' << WorkSimulator{}.work<int8_t>();
     promise.set_value(
         ExecutionResult{std::chrono::high_resolution_clock::now(), ss.str()});
   }
@@ -121,7 +130,7 @@ template <typename ExecutorImplementation> struct BenchmarkRunner {
         th = std::thread(CountBenchmark<ExecutorImplementation>{*executor,
                                                                 cout_mutex,
                                                                 std::cout},
-                         work_per_thread.quot +( (--rem>=0) ? 1 : 0));
+                         work_per_thread.quot + ((--rem >= 0) ? 1 : 0));
       for (auto &th : threads)
         th.join();
     }
