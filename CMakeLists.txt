@@ -7,3 +7,4 @@ conan_basic_setup()
 
 add_subdirectory(executor)
 add_subdirectory(simple20)
+add_subdirectory(emplace-vs-push)
