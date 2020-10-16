@@ -1158,3 +1158,5 @@ dmypy.json
 .pytype/
 
 .codelite/
+
+.clangd/
